@@ -1,0 +1,11 @@
+{{- range .Values.namespaces }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .name }}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+  labels:
+    role: {{ .role }}
+---
+{{- end }}

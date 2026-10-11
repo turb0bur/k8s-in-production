@@ -1,0 +1,20 @@
+namespaces:
+  - name: mentor
+    role: mentor
+  - name: student01
+    role: student
+  - name: student02
+    role: student
+  - name: student03
+    role: student
+
+users:
+  - name: mentor
+    rw: [mentor, student01, student02, student03]
+  - name: student01
+    rw: [student01]
+  - name: student02
+    rw: [student02]
+    ro: [student01, default]
+  - name: student03
+    rw: [student03]
