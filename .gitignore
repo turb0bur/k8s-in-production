@@ -1,0 +1,9 @@
+# Generated per-user credentials (private keys, certs, kubeconfigs)
+kubeconfigs/
+*.key
+*.csr
+*.crt
+*.kubeconfig
+
+# IDE
+.idea/
