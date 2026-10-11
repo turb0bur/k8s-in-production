@@ -1,0 +1,38 @@
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
+metadata:
+  name: add-person-label
+  annotations:
+    policies.kyverno.io/title: Add person Label
+    policies.kyverno.io/category: Labeling
+    policies.kyverno.io/description: >-
+      Adds the label {{ .Values.personLabel }} to pods, copying the value from the {{ .Values.roleLabel }} label of
+      the pod's namespace ({{ join " or " .Values.namespaceRoles }}). Namespaces without a {{ .Values.roleLabel }} label
+      are not matched, so their pods never get the label. A {{ .Values.personLabel }} label that
+      is already set is left untouched so the validating policy can report it.
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE]
+        resources: [pods]
+    namespaceSelector:
+      matchExpressions:
+        - key: {{ .Values.roleLabel }}
+          operator: In
+          values:
+            {{- toYaml .Values.namespaceRoles | nindent 12 }}
+  matchConditions:
+    - name: person-label-not-set
+      expression: >-
+        !has(object.metadata.labels) || !("{{ .Values.personLabel }}" in object.metadata.labels)
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: >-
+          Object{
+            metadata: Object.metadata{
+              labels: {"{{ .Values.personLabel }}": namespaceObject.metadata.labels["{{ .Values.roleLabel }}"]}
+            }
+          }

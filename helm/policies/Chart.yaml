@@ -1,0 +1,5 @@
+apiVersion: v2
+name: policies
+description: Kyverno policies from Module 02 (read-only root filesystem, person label)
+type: application
+version: 0.1.0

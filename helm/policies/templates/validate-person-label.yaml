@@ -1,0 +1,40 @@
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: validate-person-label
+  annotations:
+    policies.kyverno.io/title: Validate person Label
+    policies.kyverno.io/category: Labeling
+    policies.kyverno.io/description: >-
+      Pods in {{ join " and " .Values.namespaceRoles }} namespaces must carry a {{ .Values.personLabel }} label equal to
+      the {{ .Values.roleLabel }} label of their namespace (so a pod can never be labelled
+      with another role). Pods in all other namespaces must not have a {{ .Values.personLabel }} label.
+      Runs in audit mode.
+spec:
+  validationActions:
+    - Audit
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: nsRole
+      expression: >-
+        has(namespaceObject.metadata.labels) && "{{ .Values.roleLabel }}" in namespaceObject.metadata.labels
+          ? namespaceObject.metadata.labels["{{ .Values.roleLabel }}"]
+          : ""
+    - name: hasPerson
+      expression: >-
+        has(object.metadata.labels) && "{{ .Values.personLabel }}" in object.metadata.labels
+    - name: person
+      expression: >-
+        variables.hasPerson ? object.metadata.labels["{{ .Values.personLabel }}"] : ""
+  validations:
+    - message: "The {{ .Values.personLabel }} label must match the {{ .Values.roleLabel }} label of the namespace ({{ join " or " .Values.namespaceRoles }})."
+      expression: >-
+        !(variables.nsRole in {{ .Values.namespaceRoles | toJson }}) || variables.person == variables.nsRole
+    - message: "The {{ .Values.personLabel }} label is only allowed in {{ join " and " .Values.namespaceRoles }} namespaces."
+      expression: >-
+        variables.nsRole in {{ .Values.namespaceRoles | toJson }} || !variables.hasPerson

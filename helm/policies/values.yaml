@@ -1,0 +1,8 @@
+roleLabel: role
+personLabel: person
+namespaceRoles:
+  - student
+  - mentor
+excludedNamespaces:
+  - kube-system
+  - kyverno
