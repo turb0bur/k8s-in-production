@@ -53,6 +53,8 @@
 │   └── apps                        # Applications reconciled by Argo CD
 │       ├── policies.yaml           # -> helm/policies
 │       └── rbac.yaml               # -> helm/rbac
+├── istio
+│   └── istiod-values.yaml          # Istio control plane Helm values
 └── kubeconfigs                     # generated, gitignored
 ```
 
@@ -274,3 +276,71 @@ kubectl get applications -n argocd -w
 kubectl delete validatingpolicy require-readonly-root-filesystem
 kubectl get validatingpolicy
 ```
+
+## Module 04 – Service Mesh
+
+### Tasks
+
+1. Install the Istio service mesh in sidecar mode.
+
+2. Create a Kyverno policy that runs all pods with the label `person: student` with the Istio sidecar container.
+
+### Istio
+
+Istio is installed with Helm, pinned to 1.30.5, as cluster admin. Like Kyverno, it is a prerequisite that Argo CD does not manage; its values are kept in Git.
+
+```bash
+helm repo add istio https://blob.istio.io/istio-release/charts
+helm repo update
+
+helm install istio-base istio/base -n istio-system --create-namespace --version 1.30.5
+helm install istiod istio/istiod -n istio-system --version 1.30.5 \
+  -f istio/istiod-values.yaml --wait
+
+kubectl get pods -n istio-system          # istiod is Running
+```
+
+`istio/istiod-values.yaml` sets two values, and the student namespaces need one label. All three are required for the policy to work:
+
+| Setting | Why |
+|---------|-----|
+| `global.proxy.autoInject: disabled` | Istio injects only pods that carry the label `sidecar.istio.io/inject=true`. |
+| `sidecarInjectorWebhook.reinvocationPolicy: IfNeeded` | The API server calls the Istio injector again after another webhook (Kyverno) has changed the pod. |
+| namespace label `istio-injection=enabled` (set in `helm/rbac/values.yaml` for the student namespaces) | Makes the Istio webhook run on the first pass. Kubernetes re-invokes only webhooks that already ran, and Istio runs before Kyverno, so without this label it would never be called again once the pod gets its label. |
+
+To uninstall, remove `istiod` first and `istio-base` second.
+
+### Policy `inject-istio-sidecar`
+
+The policy is a MutatingPolicy in the `helm/policies` chart. It adds the label `sidecar.istio.io/inject: "true"` to every new pod labelled `person: student`. A pod that already sets `sidecar.istio.io/inject` is left alone, so `"false"` still opts a pod out.
+
+What happens when a pod is created in a student namespace:
+
+1. The Istio injector runs first. The pod has no inject label, so it does nothing.
+2. Kyverno `add-person-label` sets `person: student` from the namespace role.
+3. Kyverno `inject-istio-sidecar` sets `sidecar.istio.io/inject: "true"`.
+4. The API server calls the Istio injector again, and it adds `istio-init` and `istio-proxy`.
+
+Argo CD applies the policy and the namespace label from Git once the branch tracked by the Applications contains them. To try the policy before that, apply it by hand and label the namespaces:
+
+```bash
+helm template p helm/policies -s templates/inject-istio-sidecar.yaml | kubectl apply -f -
+kubectl label ns student01 student02 student03 istio-injection=enabled
+```
+
+Verify, as cluster admin:
+
+```bash
+kubectl run t1 --image=nginx -n student01                              # person=student from Kyverno
+kubectl run c1 --image=nginx -n student01 --labels=person=mentor       # control: not a student pod
+kubectl run m1 --image=nginx -n mentor
+kubectl get pods -n student01                                          # t1 2/2, c1 1/1
+kubectl get pod m1 -n mentor                                           # 1/1
+kubectl get pod t1 -n student01 -o jsonpath='{.spec.initContainers[*].name}'; echo   # istio-init istio-proxy
+kubectl delete pod t1 c1 -n student01 && kubectl delete pod m1 -n mentor
+```
+
+Notes:
+- `istio-proxy` runs as a native sidecar, so it is listed under `initContainers`, not `containers`.
+- The sidecar is added only when a pod is created. Pods that already run in the student namespaces need a restart.
+- The audit policy from Module 02 checks every container of a pod, including the injected `istio-init` and `istio-proxy`, so student pods may show up in the audit report because of the sidecar.
