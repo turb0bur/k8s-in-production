@@ -6,3 +6,6 @@ namespaceRoles:
 excludedNamespaces:
   - kube-system
   - kyverno
+istio:
+  injectLabel: sidecar.istio.io/inject
+  personValue: student
