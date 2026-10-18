@@ -44,7 +44,7 @@
 │   │   └── templates
 │   └── rbac                        # chart: namespaces, ClusterRoles, RoleBindings
 │       ├── Chart.yaml
-│       ├── values.yaml             # namespaces and per-user rw/ro access
+│       ├── values.yaml             # student count and additional grants
 │       └── templates
 ├── gitops
 │   ├── bootstrap                   # applied by hand, once
@@ -212,9 +212,9 @@ Argo CD is used for GitOps. The charts cover the policies and, in addition, the 
 | Chart | Renders | Main values |
 |-------|---------|-------------|
 | `helm/policies` | the 3 Kyverno policies | `roleLabel`, `personLabel`, `namespaceRoles`, `excludedNamespaces` |
-| `helm/rbac` | namespaces, `ns-rw` / `ns-ro` ClusterRoles, RoleBindings | `namespaces` (name and role), `users` (`rw` and `ro` namespace lists) |
+| `helm/rbac` | namespaces, `ns-rw` / `ns-ro` ClusterRoles, RoleBindings | `studentCount`, `additionalGrants` (`user`, `role`, `namespaces`) |
 
-The charts render the same objects as the Module 02 manifests. Check locally, without changing anything:
+`helm/rbac` follows the same model as `scripts/generate-manifests.sh`: the mentor gets `baseRole` in every namespace, each of the `studentCount` students gets it in their own namespace, and `additionalGrants` adds the rest. The charts render the same objects as the Module 02 flow. Check locally, without changing anything:
 
 ```bash
 helm lint helm/policies helm/rbac
@@ -224,7 +224,7 @@ helm template p helm/policies | kubectl apply --dry-run=server -f -
 helm template r helm/rbac | kubectl apply --dry-run=server -f -
 ```
 
-To add a student, add the namespace and a user to `helm/rbac/values.yaml`; the policies pick up the new namespace through its `role` label.
+To add a student, raise `studentCount` in `helm/rbac/values.yaml`; for extra access, add an entry to `additionalGrants`. The policies pick up a new namespace through its `role` label. Lowering `studentCount` removes the RoleBindings but keeps the namespaces (see Argo CD behavior below).
 
 ### Argo CD
 
@@ -267,7 +267,7 @@ Behavior:
 Try the GitOps loop:
 
 ```bash
-# change a value (for example add student04 to helm/rbac/values.yaml), commit, push, then:
+# change a value (for example set studentCount to 4 in helm/rbac/values.yaml), commit, push, then:
 kubectl get applications -n argocd -w
 
 # self-heal: delete a policy by hand and watch it come back
