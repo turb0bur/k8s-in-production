@@ -1,0 +1,2 @@
+remoteWrite:
+  - url: http://vlsingle-vm-victoria-metrics-k8s-stack.monitoring.svc:9428
