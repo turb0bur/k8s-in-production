@@ -36,7 +36,7 @@
             "uid": "VictoriaLogs"
           },
           "expr": "{kubernetes.pod_namespace=\"monitoring\", kubernetes.container_name=\"event-exporter\"} reason:PolicyViolation involvedObject.kind:=Pod readOnlyRootFilesystem | stats count() violations",
-          "queryType": "instant",
+          "queryType": "stats",
           "legendFormat": ""
         }
       ],
@@ -131,7 +131,7 @@
             "uid": "VictoriaLogs"
           },
           "expr": "{kubernetes.pod_namespace=\"monitoring\", kubernetes.container_name=\"event-exporter\"} reason:PolicyViolation involvedObject.kind:=Pod readOnlyRootFilesystem | stats by (involvedObject.namespace, involvedObject.name) count() violations | rename involvedObject.namespace as ns, involvedObject.name as pod | sort by (violations desc)",
-          "queryType": "instant",
+          "queryType": "stats",
           "legendFormat": ""
         }
       ],
