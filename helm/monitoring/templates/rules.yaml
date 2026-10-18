@@ -12,10 +12,9 @@ spec:
         - alert: ReadonlyRootFilesystemAuditFailed
           expr: >-
             {kubernetes.pod_namespace="{{ .Release.Namespace }}", kubernetes.container_name="event-exporter"}
-            reason:PolicyViolation readOnlyRootFilesystem
-            | extract "<kind> <ns>/<pod>: fail;" from message
-            | filter kind:=Pod
-            | stats by (ns) count() violations
+            reason:PolicyViolation involvedObject.kind:=Pod readOnlyRootFilesystem
+            | stats by (involvedObject.namespace) count() violations
+            | rename involvedObject.namespace as ns
             | filter violations:>0
           keep_firing_for: 5m
           labels:

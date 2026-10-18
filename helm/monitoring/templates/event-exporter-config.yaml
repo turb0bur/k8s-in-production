@@ -6,6 +6,7 @@ metadata:
 data:
   config.yaml: |
     logLevel: error
+    omitLookup: true
     logFormat: json
     route:
       routes:
