@@ -25,16 +25,13 @@
 .
 ├── README.md
 ├── manifests
-│   ├── namespaces.yaml             # mentor, student01-03 (label role=mentor|student)
 │   └── rbac
 │       ├── roles.yaml              # ClusterRoles ns-rw and ns-ro (permission templates)
-│       ├── mentor.yaml             # RoleBindings: mentor RW in all four namespaces
-│       ├── student01.yaml          # RW in student01
-│       ├── student02.yaml          # RW in student02, RO in student01 and default
-│       └── student03.yaml          # RW in student03
+│       └── additional-grants.csv   # extra access, user,role,namespaces
 ├── scripts
+│   ├── generate-manifests.sh       # namespaces and RoleBindings for the mentor and N students
 │   ├── issue-credentials.sh        # key, CSR, signed cert and kubeconfig for one user
-│   └── issue-all-credentials.sh    # the same for mentor and all students
+│   └── issue-all-credentials.sh    # the same for the mentor and every student namespace
 ├── policies
 │   └── kyverno
 │       ├── require-readonly-root-filesystem.yaml  # ValidatingPolicy, Audit
@@ -59,12 +56,33 @@ Everything below runs against the current `kubectl` context, so double-check it 
 
 ### 1. Namespaces and RBAC
 
-Namespaces go first, otherwise the RoleBindings fail with "namespace not found":
+Run from the repository root, in this order. The RoleBindings need the ClusterRoles and the namespaces to exist.
 
-```bash
-kubectl apply -f manifests/namespaces.yaml
-kubectl apply -f manifests/rbac/
+1. Create the ClusterRoles (the permission templates):
+
+   ```bash
+   kubectl apply -f manifests/rbac/roles.yaml
+   ```
+
+2. Generate the namespaces and RoleBindings for the mentor and 3 students, and apply them. The script only prints YAML, so `kubectl apply` is what creates the objects:
+
+   ```bash
+   chmod +x scripts/*.sh
+   ./scripts/generate-manifests.sh 3 --additional-grants manifests/rbac/additional-grants.csv | kubectl apply -f -
+   ```
+
+   To review the YAML first, run the script without the pipe. To validate it against the cluster without creating anything, pipe it to `kubectl apply --dry-run=server -f -`.
+
+- The mentor gets `ns-rw` in the `mentor` namespace and in every `studentNN` namespace.
+- Each student `studentNN` gets `ns-rw` in its own namespace only.
+- Extra access goes into the additional grants file, a CSV with the header `user,role,namespaces`. The namespaces column takes one or more namespaces separated by `;`, and one row creates a RoleBinding in each of them. The role can be any ClusterRole, and blank lines are ignored.
+
+```csv
+user,role,namespaces
+student02,ns-ro,student01;default
 ```
+
+To change the number of students, rerun the generator with another N. Removing students is not automatic: delete their namespaces by hand.
 
 | User      | Access                                         |
 |-----------|------------------------------------------------|
@@ -72,6 +90,21 @@ kubectl apply -f manifests/rbac/
 | student01 | RW in student01                                |
 | student02 | RW in student02, RO in student01 and default   |
 | student03 | RW in student03                                |
+
+Verify as admin:
+
+```bash
+kubectl get namespaces -l role
+kubectl get rolebindings -A | grep -E 'ns-r[wo]'
+
+kubectl auth can-i delete pods -n student03 --as mentor      # yes
+kubectl auth can-i delete pods -n student01 --as student01   # yes
+kubectl auth can-i get pods -n student03 --as student01      # no
+kubectl auth can-i get pods -n student01 --as student02      # yes
+kubectl auth can-i delete pods -n student01 --as student02   # no
+kubectl auth can-i get pods -n default --as student02        # yes
+kubectl auth can-i '*' '*' --all-namespaces --as mentor      # no, not cluster-admin
+```
 
 - `ns-rw` and `ns-ro` are ClusterRoles used only through namespaced RoleBindings, so nobody has cluster-wide access and nobody is cluster-admin.
 - `ns-ro` excludes secrets and `pods/exec`.
@@ -81,8 +114,7 @@ kubectl apply -f manifests/rbac/
 ### 2. Credentials
 
 ```bash
-chmod +x scripts/*.sh
-./scripts/issue-all-credentials.sh        # mentor, student01, student02, student03
+./scripts/issue-all-credentials.sh        # mentor and every namespace labelled role=student
 ./scripts/issue-credentials.sh student01  # or a single user
 ```
 
