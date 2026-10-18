@@ -1,0 +1,25 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: readonly-rootfs-audit
+  namespace: {{ .Release.Namespace }}
+spec:
+  groups:
+    - name: readonly-rootfs-audit
+      type: vlogs
+      interval: 1m
+      rules:
+        - alert: ReadonlyRootFilesystemAuditFailed
+          expr: >-
+            {kubernetes.pod_namespace="{{ .Release.Namespace }}", kubernetes.container_name="event-exporter"}
+            reason:PolicyViolation readOnlyRootFilesystem
+            | extract "<kind> <ns>/<pod>: fail;" from message
+            | filter kind:=Pod
+            | stats by (ns) count() violations
+            | filter violations:>0
+          keep_firing_for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Read-only root filesystem audit failed in {{ `{{ $labels.ns }}` }}"
+            description: "{{ `{{ $value }}` }} pod(s) in namespace {{ `{{ $labels.ns }}` }} do not set readOnlyRootFilesystem (Kyverno audit)."

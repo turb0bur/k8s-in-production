@@ -1,0 +1,4 @@
+eventExporter:
+  image: ghcr.io/resmoio/kubernetes-event-exporter:v1.7
+  reasons:
+    - PolicyViolation
