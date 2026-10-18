@@ -1,20 +1,11 @@
-namespaces:
-  - name: mentor
-    role: mentor
-  - name: student01
-    role: student
-  - name: student02
-    role: student
-  - name: student03
-    role: student
+mentor: mentor
+studentPrefix: student
+studentCount: 3
+baseRole: ns-rw
 
-users:
-  - name: mentor
-    rw: [mentor, student01, student02, student03]
-  - name: student01
-    rw: [student01]
-  - name: student02
-    rw: [student02]
-    ro: [student01, default]
-  - name: student03
-    rw: [student03]
+additionalGrants:
+  - user: student02
+    role: ns-ro
+    namespaces:
+      - student01
+      - default

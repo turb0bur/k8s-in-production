@@ -1,20 +1,15 @@
-{{- range $user := .Values.users }}
-{{- range $access := list "rw" "ro" }}
-{{- range $ns := (get $user $access | default list) }}
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: {{ $user.name }}-ns-{{ $access }}
-  namespace: {{ $ns }}
-subjects:
-  - kind: User
-    name: {{ $user.name }}
-    apiGroup: rbac.authorization.k8s.io
-roleRef:
-  kind: ClusterRole
-  name: ns-{{ $access }}
-  apiGroup: rbac.authorization.k8s.io
+{{- $students := include "rbac.studentNames" . | trim | splitList "\n" }}
+{{- $role := .Values.baseRole }}
+{{- include "rbac.rolebinding" (dict "user" .Values.mentor "namespace" .Values.mentor "role" $role) }}
+{{- range $students }}
 ---
+{{ include "rbac.rolebinding" (dict "user" $.Values.mentor "namespace" . "role" $role) }}
+---
+{{ include "rbac.rolebinding" (dict "user" . "namespace" . "role" $role) }}
 {{- end }}
+{{- range $grant := .Values.additionalGrants }}
+{{- range $ns := $grant.namespaces }}
+---
+{{ include "rbac.rolebinding" (dict "user" $grant.user "namespace" $ns "role" $grant.role) }}
 {{- end }}
 {{- end }}
