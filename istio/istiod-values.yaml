@@ -1,0 +1,5 @@
+global:
+  proxy:
+    autoInject: disabled
+sidecarInjectorWebhook:
+  reinvocationPolicy: IfNeeded

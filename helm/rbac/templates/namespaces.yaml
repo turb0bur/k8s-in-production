@@ -17,4 +17,7 @@ metadata:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
   labels:
     role: student
+    {{- with $.Values.studentLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 {{- end }}

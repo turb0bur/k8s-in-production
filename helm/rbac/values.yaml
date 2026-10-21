@@ -3,6 +3,9 @@ studentPrefix: student
 studentCount: 3
 baseRole: ns-rw
 
+studentLabels:
+  istio-injection: enabled
+
 additionalGrants:
   - user: student02
     role: ns-ro
