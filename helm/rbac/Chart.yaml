@@ -1,0 +1,5 @@
+apiVersion: v2
+name: rbac
+description: Namespaces, ClusterRoles and RoleBindings for the mentor and students (Module 02)
+type: application
+version: 0.1.0

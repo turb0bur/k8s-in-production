@@ -1,0 +1,11 @@
+mentor: mentor
+studentPrefix: student
+studentCount: 3
+baseRole: ns-rw
+
+additionalGrants:
+  - user: student02
+    role: ns-ro
+    namespaces:
+      - student01
+      - default

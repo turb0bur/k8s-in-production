@@ -37,6 +37,22 @@
 │       ├── require-readonly-root-filesystem.yaml  # ValidatingPolicy, Audit
 │       ├── add-person-label.yaml                  # MutatingPolicy, person=<namespace role>
 │       └── validate-person-label.yaml             # ValidatingPolicy, Audit
+├── helm
+│   ├── policies                    # chart: the 3 Kyverno policies
+│   │   ├── Chart.yaml
+│   │   ├── values.yaml             # label keys, namespace roles, excluded namespaces
+│   │   └── templates
+│   └── rbac                        # chart: namespaces, ClusterRoles, RoleBindings
+│       ├── Chart.yaml
+│       ├── values.yaml             # student count and additional grants
+│       └── templates
+├── gitops
+│   ├── bootstrap                   # applied by hand, once
+│   │   ├── argocd-values.yaml      # Argo CD Helm values
+│   │   └── root-app.yaml           # app-of-apps, watches gitops/apps
+│   └── apps                        # Applications reconciled by Argo CD
+│       ├── policies.yaml           # -> helm/policies
+│       └── rbac.yaml               # -> helm/rbac
 └── kubeconfigs                     # generated, gitignored
 ```
 
@@ -179,4 +195,82 @@ kubectl get pod t3 -n default --show-labels       # no person label
 # audit findings (readOnlyRootFilesystem is not set on these pods)
 kubectl get policyreport -A
 kubectl delete pod t1 -n student01 && kubectl delete pod t2 -n mentor && kubectl delete pod t3 -n default
+```
+
+## Module 03 – Platform Engineering
+
+### Tasks
+
+1. Set up a GitOps system (Argo CD, Flux, etc.) for future changes.
+
+2. Rewrite the Module 02 policies to use Helm charts.
+
+Argo CD is used for GitOps. The charts cover the policies and, in addition, the namespaces and RBAC.
+
+### Helm charts
+
+| Chart | Renders | Main values |
+|-------|---------|-------------|
+| `helm/policies` | the 3 Kyverno policies | `roleLabel`, `personLabel`, `namespaceRoles`, `excludedNamespaces` |
+| `helm/rbac` | namespaces, `ns-rw` / `ns-ro` ClusterRoles, RoleBindings | `studentCount`, `additionalGrants` (`user`, `role`, `namespaces`) |
+
+`helm/rbac` follows the same model as `scripts/generate-manifests.sh`: the mentor gets `baseRole` in every namespace, each of the `studentCount` students gets it in their own namespace, and `additionalGrants` adds the rest. The charts render the same objects as the Module 02 flow. Check locally, without changing anything:
+
+```bash
+helm lint helm/policies helm/rbac
+helm template p helm/policies
+helm template r helm/rbac
+helm template p helm/policies | kubectl apply --dry-run=server -f -
+helm template r helm/rbac | kubectl apply --dry-run=server -f -
+```
+
+To add a student, raise `studentCount` in `helm/rbac/values.yaml`; for extra access, add an entry to `additionalGrants`. The policies pick up a new namespace through its `role` label. Lowering `studentCount` removes the RoleBindings but keeps the namespaces (see Argo CD behavior below).
+
+### Argo CD
+
+Kyverno must be installed first (section 4, the `helm install` step). Argo CD does not manage Kyverno itself, only the policies. Run everything below as cluster admin.
+
+Install Argo CD:
+
+```bash
+helm repo add argo https://argoproj.github.io/argo-helm
+helm repo update
+helm install argocd argo/argo-cd -n argocd --create-namespace \
+  -f gitops/bootstrap/argocd-values.yaml
+
+kubectl get pods -n argocd                # wait until all pods are Ready
+```
+
+Open the UI at http://localhost:8080 (user `admin`):
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 --decode; echo
+kubectl port-forward svc/argocd-server -n argocd 8080:80
+```
+
+Bootstrap: the root Application creates the `policies` and `rbac` Applications from `gitops/apps`.
+
+```bash
+kubectl apply -f gitops/bootstrap/root-app.yaml
+kubectl get applications -n argocd        # root, policies, rbac: Synced / Healthy
+```
+
+Argo CD reads the Git repository on GitHub, not your working copy, so changes must be pushed before they sync. The Applications follow the `module-3` branch; switch `targetRevision` to `main` in the three files marked `TODO` after the PR is merged.
+
+Behavior:
+- Sync is automatic, with pruning and self-heal: changes made in the cluster by hand are reverted to what Git says.
+- Objects that already exist from Module 02 are adopted, not recreated (server-side apply).
+- Namespaces carry `Prune=false,Delete=false`, so removing one from `values.yaml` or deleting the Application never deletes a namespace and the workloads in it. RoleBindings are pruned, so removing a user's access in Git revokes it.
+- Once Argo CD manages these objects, change them through Git. Applying the Module 02 manifests by hand would be reverted.
+
+Try the GitOps loop:
+
+```bash
+# change a value (for example set studentCount to 4 in helm/rbac/values.yaml), commit, push, then:
+kubectl get applications -n argocd -w
+
+# self-heal: delete a policy by hand and watch it come back
+kubectl delete validatingpolicy require-readonly-root-filesystem
+kubectl get validatingpolicy
 ```

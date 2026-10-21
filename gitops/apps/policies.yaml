@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: policies
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/turb0bur/k8s-in-production.git
+    targetRevision: module-3 # TODO: switch to main after the module-3 PR is merged
+    path: helm/policies
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

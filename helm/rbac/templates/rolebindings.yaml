@@ -1,0 +1,15 @@
+{{- $students := include "rbac.studentNames" . | trim | splitList "\n" }}
+{{- $role := .Values.baseRole }}
+{{- include "rbac.rolebinding" (dict "user" .Values.mentor "namespace" .Values.mentor "role" $role) }}
+{{- range $students }}
+---
+{{ include "rbac.rolebinding" (dict "user" $.Values.mentor "namespace" . "role" $role) }}
+---
+{{ include "rbac.rolebinding" (dict "user" . "namespace" . "role" $role) }}
+{{- end }}
+{{- range $grant := .Values.additionalGrants }}
+{{- range $ns := $grant.namespaces }}
+---
+{{ include "rbac.rolebinding" (dict "user" $grant.user "namespace" $ns "role" $grant.role) }}
+{{- end }}
+{{- end }}

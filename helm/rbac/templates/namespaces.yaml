@@ -1,0 +1,20 @@
+{{- $students := include "rbac.studentNames" . | trim | splitList "\n" }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.mentor }}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+  labels:
+    role: {{ .Values.mentor }}
+{{- range $students }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ . }}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+  labels:
+    role: student
+{{- end }}
