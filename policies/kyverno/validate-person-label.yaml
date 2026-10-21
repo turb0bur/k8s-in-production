@@ -1,0 +1,40 @@
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: validate-person-label
+  annotations:
+    policies.kyverno.io/title: Validate person Label
+    policies.kyverno.io/category: Labeling
+    policies.kyverno.io/description: >-
+      Pods in student and mentor namespaces must carry a person label equal to
+      the role label of their namespace (so a student pod can never be labelled
+      mentor). Pods in all other namespaces must not have a person label.
+      Runs in audit mode.
+spec:
+  validationActions:
+    - Audit
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: nsRole
+      expression: >-
+        has(namespaceObject.metadata.labels) && "role" in namespaceObject.metadata.labels
+          ? namespaceObject.metadata.labels["role"]
+          : ""
+    - name: hasPerson
+      expression: >-
+        has(object.metadata.labels) && "person" in object.metadata.labels
+    - name: person
+      expression: >-
+        variables.hasPerson ? object.metadata.labels["person"] : ""
+  validations:
+    - message: "The person label must match the role label of the namespace (student or mentor)."
+      expression: >-
+        !(variables.nsRole in ["student", "mentor"]) || variables.person == variables.nsRole
+    - message: "The person label is only allowed in student and mentor namespaces."
+      expression: >-
+        variables.nsRole in ["student", "mentor"] || !variables.hasPerson

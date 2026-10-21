@@ -1,0 +1,36 @@
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-readonly-root-filesystem
+  annotations:
+    policies.kyverno.io/title: Require Read-Only Root Filesystem
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/description: >-
+      Containers should run with a read-only root filesystem. Runs in audit
+      mode: violations are reported but pods are still admitted.
+spec:
+  validationActions:
+    - Audit
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kyverno]
+  validations:
+    - message: "Containers must set securityContext.readOnlyRootFilesystem to true."
+      expression: >-
+        object.spec.containers.all(c,
+          has(c.securityContext) &&
+          has(c.securityContext.readOnlyRootFilesystem) &&
+          c.securityContext.readOnlyRootFilesystem == true) &&
+        (!has(object.spec.initContainers) ||
+          object.spec.initContainers.all(c,
+            has(c.securityContext) &&
+            has(c.securityContext.readOnlyRootFilesystem) &&
+            c.securityContext.readOnlyRootFilesystem == true))
