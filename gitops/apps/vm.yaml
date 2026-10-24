@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  # the name is the Helm release name, which the stack uses in its service names (for example vlsingle-vm-victoria-metrics-k8s-stack)
+  name: vm
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://victoriametrics.github.io/helm-charts/
+      chart: victoria-metrics-k8s-stack
+      targetRevision: 0.96.0
+      helm:
+        valueFiles:
+          - $values/monitoring/vm-k8s-stack-values.yaml
+    - repoURL: https://github.com/turb0bur/k8s-in-production.git
+      targetRevision: module-5 # TODO: switch to main after the module-5 PR is merged
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

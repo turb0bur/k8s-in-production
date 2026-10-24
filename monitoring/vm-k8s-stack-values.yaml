@@ -1,0 +1,34 @@
+vmsingle:
+  spec:
+    retentionPeriod: 7d
+    storage:
+      resources:
+        requests:
+          storage: 5Gi
+
+vlsingle:
+  enabled: true
+  spec:
+    retentionPeriod: 7d
+    storage:
+      resources:
+        requests:
+          storage: 5Gi
+
+grafana:
+  # created by hand before the first sync; a chart-generated password would change on every Argo CD render
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  plugins:
+    - victoriametrics-metrics-datasource
+    - victoriametrics-logs-datasource
+
+# kind does not expose these control plane endpoints, so their scrapes and alerts would always fail
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false

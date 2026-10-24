@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vl-collector
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://victoriametrics.github.io/helm-charts/
+      chart: victoria-logs-collector
+      targetRevision: 0.3.8
+      helm:
+        valueFiles:
+          - $values/monitoring/victoria-logs-collector-values.yaml
+    - repoURL: https://github.com/turb0bur/k8s-in-production.git
+      targetRevision: module-5 # TODO: switch to main after the module-5 PR is merged
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
